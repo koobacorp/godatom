@@ -16,6 +16,9 @@ const juce::Colour topBar { 0xff1a1819 };
 
 static constexpr int kBaseW = 1040;
 static constexpr int kBaseH = 430;
+// Amount: knob on the left of the galaxy, readout capsule to its right, a clear gap between them.
+static constexpr float kAmtKnobX = 240, kAmtKnobY = 106, kAmtKnobS = 132;
+static constexpr float kAmtCapX  = 400, kAmtCapY  = 114, kAmtCapW = 140, kAmtCapH = 128;
 
 void SilverLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
                                          float pos, float start, float end, juce::Slider&) {
@@ -101,13 +104,19 @@ GodAtomEditor::GodAtomEditor(GodAtomProcessor& p)
     addT(btnA, "A"); addT(btnB, "B");
     addT(animBtn, "Animation"); addT(autoBtn, "Auto-gain");
 
-    presetBox.addItemList(juce::StringArray(ga::kPresetNames, ga::kNumPresets), 1);
-    presetBox.setSelectedId(proc.getCurrentProgram() + 1, juce::dontSendNotification);
     presetBox.onChange = [this] {
-        int i = presetBox.getSelectedId() - 1;
-        if (i >= 0) proc.applyPreset(i);
+        int id = presetBox.getSelectedId();
+        if (id >= 1000) {
+            auto names = GodAtomProcessor::listUserPresets();
+            int i = id - 1000;
+            if (juce::isPositiveAndBelow(i, names.size()))
+                proc.loadUserPreset(names[i]);
+        } else if (id > 0) {
+            proc.applyPreset(id - 1);
+        }
     };
     addAndMakeVisible(presetBox);
+    refreshPresetMenu();
 
     scaleBox.addItemList({ "75%", "100%", "125%", "150%", "200%" }, 1);
     osBox.addItemList({ "1x", "2x", "4x", "8x" }, 1);
@@ -128,7 +137,18 @@ GodAtomEditor::GodAtomEditor(GodAtomProcessor& p)
         autoBtn.setVisible(proc.showSettings);
         repaint();
     };
-    saveBtn.onClick = [this] { /* user presets stay in host session state via A/B + DAW save */ };
+    saveBtn.onClick = [this] { showSavePrompt(); };
+    saveOk.onClick = [this] { commitSave(); };
+    saveName.setTextToShowWhenEmpty("Preset name", col::label);
+    saveName.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2c));
+    saveName.setColour(juce::TextEditor::textColourId, col::mint);
+    saveName.setColour(juce::TextEditor::outlineColourId, col::mint);
+    saveName.setJustification(juce::Justification::centredLeft);
+    saveName.onReturnKey = [this] { commitSave(); };
+    saveName.onEscapeKey = [this] { hideSavePrompt(); };
+    addChildComponent(saveName);
+    addChildComponent(saveOk);
+    saveOk.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2c));
 
     btnA.onClick = [this] {
         proc.storeSlot(proc.activeSlot());
@@ -217,27 +237,82 @@ void GodAtomEditor::applyScaleFromParam() {
     setSize((int)std::lround(kBaseW * sc), (int)std::lround(kBaseH * sc));
 }
 
+void GodAtomEditor::refreshPresetMenu() {
+    auto selUser = proc.currentUserPreset();
+    int keepFactory = selUser.isEmpty() ? proc.getCurrentProgram() + 1 : 0;
+    presetBox.clear(juce::dontSendNotification);
+    for (int i = 0; i < ga::kNumPresets; ++i)
+        presetBox.addItem(ga::kPresetNames[i], i + 1);
+    auto users = GodAtomProcessor::listUserPresets();
+    if (users.size() > 0) {
+        presetBox.addSeparator();
+        for (int i = 0; i < users.size(); ++i)
+            presetBox.addItem(users[i], 1000 + i);
+    }
+    if (selUser.isNotEmpty()) {
+        int idx = users.indexOf(selUser);
+        if (idx >= 0) presetBox.setSelectedId(1000 + idx, juce::dontSendNotification);
+        else presetBox.setSelectedId(1, juce::dontSendNotification);
+    } else {
+        presetBox.setSelectedId(keepFactory > 0 ? keepFactory : 1, juce::dontSendNotification);
+    }
+}
+
+bool GodAtomEditor::presetMenuContains(const juce::String& name) const {
+    for (int i = 0; i < presetBox.getNumItems(); ++i)
+        if (presetBox.getItemText(i) == name)
+            return true;
+    return false;
+}
+
+void GodAtomEditor::showSavePrompt() {
+    saveName.setText(proc.currentUserPreset().isEmpty() ? "My preset" : proc.currentUserPreset(),
+                     juce::dontSendNotification);
+    saveName.setVisible(true);
+    saveOk.setVisible(true);
+    saveName.grabKeyboardFocus();
+    saveName.selectAll();
+}
+
+void GodAtomEditor::hideSavePrompt() {
+    saveName.setVisible(false);
+    saveOk.setVisible(false);
+}
+
+void GodAtomEditor::commitSave() {
+    auto name = saveName.getText();
+    if (proc.saveUserPreset(name)) {
+        hideSavePrompt();
+        refreshPresetMenu();
+    }
+}
+
 void GodAtomEditor::resized() {
     scale = (float)getWidth() / (float)kBaseW;
-    // Top bar
+    // Top bar: leftover space after EXT before the UI Scale label.
     presetBox.setBounds(SR(16, 6, 170, 24).toNearestInt());
     saveBtn.setBounds(SR(192, 6, 50, 24).toNearestInt());
     btnA.setBounds(SR(250, 6, 32, 24).toNearestInt());
     btnB.setBounds(SR(286, 6, 32, 24).toNearestInt());
-    scInt.setBounds(SR(700, 6, 46, 24).toNearestInt());
-    scExt.setBounds(SR(750, 6, 46, 24).toNearestInt());
-    scaleBox.setBounds(SR(830, 6, 90, 24).toNearestInt());
-    settingsBtn.setBounds(SR(930, 6, 94, 24).toNearestInt());
+    saveName.setBounds(SR(326, 6, 150, 24).toNearestInt());
+    saveOk.setBounds(SR(480, 6, 40, 24).toNearestInt());
+    scInt.setBounds(SR(664, 6, 44, 24).toNearestInt());
+    scExt.setBounds(SR(716, 6, 44, 24).toNearestInt());
+    scaleBox.setBounds(SR(836, 6, 88, 24).toNearestInt());
+    settingsBtn.setBounds(SR(934, 6, 90, 24).toNearestInt());
 
-    // EQ knobs
+    // EQ knobs — slightly smaller so the Low label sits fully above the chassis.
     eqOn.setBounds(SR(132, 50, 52, 26).toNearestInt());
-    eqHigh.setBounds(SR(126, 84, 64, 64).toNearestInt());
-    eqMid.setBounds(SR(126, 154, 64, 64).toNearestInt());
-    eqLow.setBounds(SR(126, 224, 64, 64).toNearestInt());
+    eqHigh.setBounds(SR(128, 78, 54, 54).toNearestInt());
+    eqMid.setBounds(SR(128, 150, 54, 54).toNearestInt());
+    eqLow.setBounds(SR(128, 222, 54, 54).toNearestInt());
 
-    // Amount
-    amountKnob.setBounds(SR(268, 100, 150, 150).toNearestInt());
-    charOn.setBounds(SR(455, 200, 74, 28).toNearestInt());
+    // Amount: knob left, capsule (and its power button) to the right, no overlap.
+    amountKnob.setBounds(SR(kAmtKnobX, kAmtKnobY, kAmtKnobS, kAmtKnobS).toNearestInt());
+    const float pwrW = 76.f, pwrH = 28.f;
+    charOn.setBounds(SR(kAmtCapX + 0.5f * (kAmtCapW - pwrW),
+                        kAmtCapY + kAmtCapH - pwrH - 10.f,
+                        pwrW, pwrH).toNearestInt());
 
     // Limiter power
     limOn.setBounds(SR(812, 50, 52, 26).toNearestInt());
@@ -264,9 +339,11 @@ void GodAtomEditor::timerCallback() {
     bool ext = proc.apvts.getRawParameterValue("extSC")->load() >= 0.5f;
     scInt.setToggleState(!ext, juce::dontSendNotification);
     scExt.setToggleState(ext, juce::dontSendNotification);
-    int prog = proc.getCurrentProgram() + 1;
-    if (presetBox.getSelectedId() != prog && !presetBox.hasKeyboardFocus(true))
-        presetBox.setSelectedId(prog, juce::dontSendNotification);
+    if (proc.currentUserPreset().isEmpty() && !presetBox.hasKeyboardFocus(true)) {
+        int prog = proc.getCurrentProgram() + 1;
+        if (presetBox.getSelectedId() != prog)
+            presetBox.setSelectedId(prog, juce::dontSendNotification);
+    }
     if (proc.apvts.getRawParameterValue("animation")->load() >= 0.5f) {
         for (auto& pt : parts) {
             pt.x += pt.vx; pt.y += pt.vy;
@@ -387,8 +464,8 @@ void GodAtomEditor::drawGalaxy(juce::Graphics& g, juce::Rectangle<float> area, f
     g.setColour(juce::Colour(0xff202226));
     g.drawEllipse(oval, 1.2f * scale);
 
-    // Amount capsule
-    auto cap = juce::Rectangle<float>(S(430), S(110), S(130), S(120));
+    // Amount capsule — to the right of the knob, not under it.
+    auto cap = SR(kAmtCapX, kAmtCapY, kAmtCapW, kAmtCapH);
     g.setColour(juce::Colour(0xcc0b0a0e));
     g.fillRoundedRectangle(cap, S(18));
     g.setColour(col::mint);
@@ -486,8 +563,8 @@ void GodAtomEditor::paint(juce::Graphics& g) {
     // EQ labels
     g.setColour(col::mint);
     g.setFont(juce::FontOptions(S(12)));
-    g.drawText("high", SR(126, 146, 64, 14).toNearestInt(), juce::Justification::centred, false);
-    g.drawText("mid",  SR(126, 216, 64, 14).toNearestInt(), juce::Justification::centred, false);
+    g.drawText("high", SR(126, 132, 64, 14).toNearestInt(), juce::Justification::centred, false);
+    g.drawText("mid",  SR(126, 204, 64, 14).toNearestInt(), juce::Justification::centred, false);
     g.drawText("low",  SR(126, 276, 64, 14).toNearestInt(), juce::Justification::centred, false);
 
     drawGalaxy(g, SR(220, 48, 400, 240), p.amount, level);
@@ -531,8 +608,8 @@ void GodAtomEditor::paint(juce::Graphics& g) {
     g.setColour(col::label);
     g.setFont(juce::FontOptions(S(11)));
     g.drawText("Preset", SR(16, 4, 80, 12).toNearestInt(), juce::Justification::centredLeft, false);
-    g.drawText("Sidechain", SR(630, 10, 70, 16).toNearestInt(), juce::Justification::centredRight, false);
-    g.drawText("UI Scale", SR(770, 10, 58, 16).toNearestInt(), juce::Justification::centredRight, false);
+    g.drawText("Sidechain", SR(590, 10, 70, 16).toNearestInt(), juce::Justification::centredRight, false);
+    g.drawText("UI Scale", SR(776, 10, 56, 16).toNearestInt(), juce::Justification::centredRight, false);
 
     drawSettings(g);
 }

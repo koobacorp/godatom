@@ -151,6 +151,7 @@ void GodAtomProcessor::applyParams(const ga::Params& p) {
 void GodAtomProcessor::applyPreset(int index) {
     index = juce::jlimit(0, ga::kNumPresets - 1, index);
     program = index;
+    userPresetName.clear();
     applyParams(ga::presetByName(ga::kPresetNames[index]));
 }
 
@@ -158,6 +159,60 @@ void GodAtomProcessor::setCurrentProgram(int i) { applyPreset(i); }
 const juce::String GodAtomProcessor::getProgramName(int i) {
     if (i >= 0 && i < ga::kNumPresets) return ga::kPresetNames[i];
     return {};
+}
+
+juce::File GodAtomProcessor::userPresetDirectory() {
+    return juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+        .getChildFile("Library")
+        .getChildFile("Audio")
+        .getChildFile("Presets")
+        .getChildFile("GOD ATOM");
+}
+
+juce::String GodAtomProcessor::sanitizePresetName(const juce::String& name) {
+    auto s = name.trim();
+    juce::String out;
+    for (int i = 0; i < s.length() && out.length() < 64; ++i) {
+        auto c = s[i];
+        if (juce::CharacterFunctions::isLetterOrDigit(c) || c == ' ' || c == '-' || c == '_' || c == '.')
+            out += c;
+    }
+    return out.trim();
+}
+
+juce::StringArray GodAtomProcessor::listUserPresets() {
+    juce::StringArray names;
+    auto dir = userPresetDirectory();
+    if (!dir.isDirectory()) return names;
+    for (auto& f : dir.findChildFiles(juce::File::findFiles, false, "*.xml"))
+        names.add(f.getFileNameWithoutExtension());
+    names.sortNatural();
+    return names;
+}
+
+bool GodAtomProcessor::saveUserPreset(const juce::String& name) {
+    auto safe = sanitizePresetName(name);
+    if (safe.isEmpty()) return false;
+    auto dir = userPresetDirectory();
+    if (!dir.createDirectory() && !dir.isDirectory()) return false;
+    auto xml = apvts.copyState().createXml();
+    if (!xml) return false;
+    if (!xml->writeTo(dir.getChildFile(safe + ".xml"))) return false;
+    userPresetName = safe;
+    return true;
+}
+
+bool GodAtomProcessor::loadUserPreset(const juce::String& name) {
+    auto safe = sanitizePresetName(name);
+    if (safe.isEmpty()) return false;
+    auto f = userPresetDirectory().getChildFile(safe + ".xml");
+    if (!f.existsAsFile()) return false;
+    auto xml = juce::XmlDocument::parse(f);
+    if (!xml) return false;
+    if (!xml->hasTagName(apvts.state.getType())) return false;
+    apvts.replaceState(juce::ValueTree::fromXml(*xml));
+    userPresetName = safe;
+    return true;
 }
 
 void GodAtomProcessor::storeSlot(int slot) {

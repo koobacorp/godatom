@@ -17,10 +17,15 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+    void applyScaleFromParam();
+    void refreshPresetMenu();
+    bool presetMenuContains(const juce::String& name) const;
 
 private:
     void timerCallback() override;
-    void applyScaleFromParam();
+    void showSavePrompt();
+    void hideSavePrompt();
+    void commitSave();
     float S(float v) const { return v * scale; }
     juce::Rectangle<float> SR(float x, float y, float w, float h) const {
         return { S(x), S(y), S(w), S(h) };
@@ -39,7 +44,8 @@ private:
     juce::Slider inKnob, outKnob, limKnob, eqHigh, eqMid, eqLow, amountKnob;
     juce::ToggleButton eqOn, charOn, limOn, scInt, scExt, btnA, btnB, animBtn, autoBtn;
     juce::ComboBox presetBox, scaleBox, osBox, meterBox;
-    juce::TextButton settingsBtn { "Settings" }, saveBtn { "Save" };
+    juce::TextButton settingsBtn { "Settings" }, saveBtn { "Save" }, saveOk { "OK" };
+    juce::TextEditor saveName;
 
     using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
     using BA = juce::AudioProcessorValueTreeState::ButtonAttachment;

@@ -36,6 +36,14 @@ public:
     ga::Params readParams() const;
     void applyParams(const ga::Params& p);
     void applyPreset(int index);
+
+    static juce::File userPresetDirectory();
+    static juce::String sanitizePresetName(const juce::String& name);
+    static juce::StringArray listUserPresets();
+    bool saveUserPreset(const juce::String& name);
+    bool loadUserPreset(const juce::String& name);
+    juce::String currentUserPreset() const { return userPresetName; }
+
     ga::Meters currentMeters() const { return meters; }
     void resetMeters() { engine.resetPeaks(); meters = {}; }
     int reportedLatency() const { return getLatencySamples(); }
@@ -61,5 +69,6 @@ private:
     juce::MemoryBlock slotA, slotB;
     int abSlot = 0;
     std::atomic<float> autoGain { 0 };
+    juce::String userPresetName;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GodAtomProcessor)
 };

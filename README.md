@@ -16,6 +16,9 @@ It is original software: original DSP, original artwork, original name. The layo
 
 Factory presets: Default, Indie, Ambient, Late Night, Folk, Glue Only, Wide Air, Quiet Mix.
 
+**Save** writes a named user preset to `~/Library/Audio/Presets/GOD ATOM` (an XML snapshot of the current parameters) and adds it to the preset menu. The same folder is scanned on launch, so those presets come back in a new session.
+
+
 ## Latency
 
 At 1× oversampling the plugin reports a 64-sample lookahead (about 1.33 ms at 48 kHz), including when the limiter is off, so the delay does not jump when you click the limiter. Higher oversampling adds a small, reported filter delay.

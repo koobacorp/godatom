@@ -18,7 +18,8 @@ cmake --build build --target godatom_plugin_tests GodAtom_VST3
 ./build/godatom_plugin_tests_artefacts/Release/godatom_plugin_tests
 ```
 
-These take screenshots and write level-matched WAV demos into `diag/`.
+These take screenshots (including default layout at 75%, 100% and 200% UI scale) and write level-matched WAV demos into `diag/`. They also save, list and reload a named user preset under `~/Library/Audio/Presets/GOD ATOM`, then delete the test file.
+
 
 ## pluginval
 

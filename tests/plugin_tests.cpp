@@ -202,6 +202,39 @@ int main() {
         CHECKM(std::abs(p.amount - 130.f) < 0.5f, "state amount %f", p.amount);
     }
 
+    // User presets on disk
+    {
+        Rig r(sr, 256);
+        const juce::String pname { "TestAtomUser" };
+        auto file = GodAtomProcessor::userPresetDirectory().getChildFile(pname + ".xml");
+        file.deleteFile();
+        CHECK(GodAtomProcessor::sanitizePresetName(" My Cool-Preset_1 ").compare("My Cool-Preset_1") == 0);
+        CHECK(GodAtomProcessor::sanitizePresetName("foo/../bar").compare("foo..bar") == 0);
+        CHECK(!r.p.saveUserPreset(""));
+        CHECK(!r.p.saveUserPreset("   "));
+        r.p.applyParams([]{ ga::Params p; p.amount = 173; p.eqLowDb = 4.5f; p.limiterDb = 7; return p; }());
+        CHECK(r.p.saveUserPreset(pname));
+        CHECK(file.existsAsFile());
+        CHECK(GodAtomProcessor::listUserPresets().contains(pname));
+        r.p.applyPreset(0);
+        CHECK(r.p.currentUserPreset().isEmpty());
+        CHECKM(std::abs(r.p.readParams().amount - 100.f) < 0.5f, "reset amount %f", r.p.readParams().amount);
+        CHECK(r.p.loadUserPreset(pname));
+        CHECK(r.p.currentUserPreset() == pname);
+        auto loaded = r.p.readParams();
+        CHECKM(std::abs(loaded.amount - 173.f) < 0.5f, "loaded amount %f", loaded.amount);
+        CHECKM(std::abs(loaded.eqLowDb - 4.5f) < 0.1f, "loaded eqLow %f", loaded.eqLowDb);
+        CHECKM(std::abs(loaded.limiterDb - 7.f) < 0.1f, "loaded limiter %f", loaded.limiterDb);
+        auto* ed = dynamic_cast<GodAtomEditor*>(r.p.createEditor());
+        CHECK(ed != nullptr);
+        if (ed) {
+            ed->refreshPresetMenu();
+            CHECK(ed->presetMenuContains(pname));
+            delete ed;
+        }
+        CHECK(file.deleteFile());
+    }
+
     // Screenshots
     {
         Rig r(sr, 256);
@@ -211,10 +244,23 @@ int main() {
         auto* ed = dynamic_cast<GodAtomEditor*>(r.p.createEditor());
         CHECK(ed != nullptr);
         if (ed) {
+            auto setScale = [&](int idx) {
+                if (auto* par = r.p.apvts.getParameter("uiScale"))
+                    par->setValueNotifyingHost(par->convertTo0to1((float)idx));
+                ed->applyScaleFromParam();
+            };
             r.p.applyPreset(0);
             juce::Thread::sleep(60);
             CHECK(shot(*ed, shotsDir.getChildFile("default.png")));
             CHECK(shot(*ed, diag.getChildFile("ui-default.png")));
+
+            setScale(0); // 75%
+            juce::Thread::sleep(60);
+            CHECK(shot(*ed, diag.getChildFile("ui-default-75.png")));
+            setScale(4); // 200%
+            juce::Thread::sleep(60);
+            CHECK(shot(*ed, diag.getChildFile("ui-default-200.png")));
+            setScale(1); // back to 100%
 
             r.p.applyParams([]{ ga::Params p; p.amount = 0; return p; }());
             juce::Thread::sleep(60);
