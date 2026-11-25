@@ -1,0 +1,8 @@
+/build/
+/build-*/
+/JUCE
+/JUCE/
+.DS_Store
+*.user
+CMakeUserPresets.json
+.cache/
