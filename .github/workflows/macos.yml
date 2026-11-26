@@ -45,6 +45,8 @@ jobs:
           curl -fLsS -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
           unzip -q pluginval.zip
           ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process --timeout-ms 600000 "build/GodAtom_artefacts/Release/VST3/GOD ATOM.vst3" 2>&1 | tee pluginval-vst3-log.txt
+          grep -q "SUCCESS" pluginval-vst3-log.txt || { echo "pluginval did not report SUCCESS"; exit 1; }
+          if grep -q "FAILED" pluginval-vst3-log.txt; then echo "pluginval reported FAILED"; exit 1; fi
       - name: Package
         if: success()
         run: |
@@ -60,6 +62,7 @@ jobs:
           path: |
             GODATOM-macOS-universal-v1.0.0.zip
             shots/*.png
+            shots/diag/*
             engine-test-log.txt
             plugin-test-log.txt
             pluginval-vst3-log.txt

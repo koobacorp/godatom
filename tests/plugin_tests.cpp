@@ -101,8 +101,13 @@ int main() {
     juce::ScopedJuceInitialiser_GUI gui;
     std::printf("GOD ATOM plugin tests\n");
 
-    juce::File diag = juce::File("/workspace/mastering/diag");
+    // On the box, keep screenshots in the repo diag/ folder. On CI, write them
+    // into the working directory (the workflow's shots/) so they upload.
+    juce::File boxRoot ("/workspace/mastering");
+    juce::File diag = boxRoot.isDirectory() ? boxRoot.getChildFile("diag")
+                                            : juce::File::getCurrentWorkingDirectory().getChildFile("diag");
     juce::File shotsDir = juce::File::getCurrentWorkingDirectory();
+    diag.createDirectory();
 
     {
         Rig r;
